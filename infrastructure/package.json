@@ -6,12 +6,10 @@
     "prebuild:lambda": "cd ../lambda && npm install",
     "build:lambda": "node build-lambda.js",
     "setup": "node setup.js",
-    "predeploy": "npm install && npm run setup",
-    "deploy": "npm run build:lambda && terraform init && terraform apply -auto-approve"
+    "deploy": "npm run setup && npm run build:lambda && terraform init && terraform apply -auto-approve"
   },
   "dependencies": {
     "archiver": "^5.3.1",
-    "dotenv": "^16.3.1",
     "fs-extra": "^11.1.1"
   }
 }

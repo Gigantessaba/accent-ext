@@ -1,51 +1,47 @@
 const fs = require('fs');
 const path = require('path');
-const dotenv = require('dotenv');
 
 async function setup() {
   try {
     // Load environment variables from .env.local
     const envPath = path.join(__dirname, '..', '.env.local');
-    const envConfig = dotenv.config({ path: envPath });
-
-    if (envConfig.error) {
-      console.warn('Warning: .env.local file not found, checking environment variables...');
+    console.log('Loading environment from:', envPath);
+    
+    if (!fs.existsSync(envPath)) {
+      throw new Error('.env.local file not found');
     }
 
-    // Get AWS credentials from environment variables
-    const awsRegion = process.env.AWS_REGION || 'us-east-1';
-    const awsAccessKeyId = process.env.AWS_ACCESS_KEY_ID;
-    const awsSecretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+    const envContent = fs.readFileSync(envPath, 'utf8');
+    const envVars = {};
+    
+    // Parse .env file content
+    envContent.split('\n').forEach(line => {
+      const [key, ...valueParts] = line.split('=');
+      if (key && valueParts.length > 0) {
+        envVars[key.trim()] = valueParts.join('=').trim();
+      }
+    });
 
-    if (!awsAccessKeyId || !awsSecretAccessKey) {
-      throw new Error(
-        'AWS credentials not found. Please ensure you have set:\n' +
-        '- AWS_ACCESS_KEY_ID\n' +
-        '- AWS_SECRET_ACCESS_KEY\n' +
-        'Either in .env.local file or as environment variables.'
-      );
+    // Verify required variables
+    const requiredVars = ['AWS_REGION', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY'];
+    const missingVars = requiredVars.filter(key => !envVars[key]);
+    
+    if (missingVars.length > 0) {
+      throw new Error(`Missing required variables: ${missingVars.join(', ')}`);
     }
 
     // Create terraform.tfvars file
-    const tfvars = `aws_region            = "${awsRegion}"
-aws_access_key_id     = "${awsAccessKeyId}"
-aws_secret_access_key = "${awsSecretAccessKey}"
+    const tfvars = `aws_region            = "${envVars.AWS_REGION}"
+aws_access_key_id     = "${envVars.AWS_ACCESS_KEY_ID}"
+aws_secret_access_key = "${envVars.AWS_SECRET_ACCESS_KEY}"
 project_name          = "audio-accent-converter"
 environment           = "dev"`;
 
-    const tfvarsPath = path.join(__dirname, 'terraform.tfvars');
-    fs.writeFileSync(tfvarsPath, tfvars);
+    fs.writeFileSync(path.join(__dirname, 'terraform.tfvars'), tfvars);
     console.log('terraform.tfvars file created successfully!');
 
-    // Verify the file was written correctly
-    const written = fs.readFileSync(tfvarsPath, 'utf8');
-    if (!written.includes(awsAccessKeyId) || !written.includes(awsSecretAccessKey)) {
-      throw new Error('Failed to write credentials to terraform.tfvars correctly');
-    }
-
   } catch (error) {
-    console.error('\nError during setup:', error.message);
-    console.error('\nPlease ensure your AWS credentials are set correctly before running the deployment.');
+    console.error('Error during setup:', error.message);
     process.exit(1);
   }
 }

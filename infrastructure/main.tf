@@ -1,14 +1,3 @@
-terraform {
-  required_version = ">= 1.0.0"
-
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 4.0"
-    }
-  }
-}
-
 provider "aws" {
   region     = var.aws_region
   access_key = var.aws_access_key_id
@@ -52,6 +41,12 @@ resource "aws_lambda_function" "audio_processor" {
   }
 }
 
+# CloudWatch log group for API Gateway
+resource "aws_cloudwatch_log_group" "api_logs" {
+  name              = "/aws/apigateway/${local.resource_prefix}-api"
+  retention_in_days = 7
+}
+
 # API Gateway
 resource "aws_apigatewayv2_api" "api" {
   name          = "${local.resource_prefix}-api"
@@ -64,6 +59,12 @@ resource "aws_apigatewayv2_api" "api" {
     expose_headers = ["*"]
     max_age      = 300
   }
+}
+
+resource "aws_apigatewayv2_stage" "prod" {
+  api_id = aws_apigatewayv2_api.api.id
+  name   = "prod"
+  auto_deploy = true
 
   access_log_settings {
     destination_arn = aws_cloudwatch_log_group.api_logs.arn
@@ -79,18 +80,6 @@ resource "aws_apigatewayv2_api" "api" {
       errorMessage  = "$context.error.message"
     })
   }
-}
-
-# CloudWatch log group for API Gateway
-resource "aws_cloudwatch_log_group" "api_logs" {
-  name              = "/aws/apigateway/${local.resource_prefix}-api"
-  retention_in_days = 7
-}
-
-resource "aws_apigatewayv2_stage" "prod" {
-  api_id = aws_apigatewayv2_api.api.id
-  name   = "prod"
-  auto_deploy = true
 }
 
 # Lambda integration
@@ -128,6 +117,12 @@ resource "aws_lambda_permission" "api_gw" {
   source_arn    = "${aws_apigatewayv2_api.api.execution_arn}/*/*"
 }
 
+# CloudWatch Logs policy for Lambda
+resource "aws_iam_role_policy_attachment" "lambda_logs" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
 # IAM Role for Lambda
 resource "aws_iam_role" "lambda_role" {
   name = "${local.resource_prefix}-lambda-role"
@@ -144,12 +139,6 @@ resource "aws_iam_role" "lambda_role" {
       }
     ]
   })
-}
-
-# CloudWatch Logs policy for Lambda
-resource "aws_iam_role_policy_attachment" "lambda_logs" {
-  role       = aws_iam_role.lambda_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
 # IAM Policy for Lambda
