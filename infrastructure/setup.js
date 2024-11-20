@@ -8,7 +8,7 @@ async function setup() {
     console.log('Loading environment from:', envPath);
     
     if (!fs.existsSync(envPath)) {
-      throw new Error('.env.local file not found');
+      throw new Error('.env.local file not found. Please copy .env.local.example to .env.local and fill in your AWS credentials.');
     }
 
     const envContent = fs.readFileSync(envPath, 'utf8');
@@ -16,9 +16,13 @@ async function setup() {
     
     // Parse .env file content
     envContent.split('\n').forEach(line => {
-      const [key, ...valueParts] = line.split('=');
+      const trimmedLine = line.trim();
+      if (!trimmedLine || trimmedLine.startsWith('#')) return;
+      
+      const [key, ...valueParts] = trimmedLine.split('=');
       if (key && valueParts.length > 0) {
-        envVars[key.trim()] = valueParts.join('=').trim();
+        const value = valueParts.join('=');
+        envVars[key.trim()] = value.replace(/^["']|["']$/g, '').trim();
       }
     });
 
@@ -27,8 +31,11 @@ async function setup() {
     const missingVars = requiredVars.filter(key => !envVars[key]);
     
     if (missingVars.length > 0) {
-      throw new Error(`Missing required variables: ${missingVars.join(', ')}`);
+      throw new Error(`Missing required variables in .env.local: ${missingVars.join(', ')}`);
     }
+
+    console.log('AWS Region:', envVars.AWS_REGION);
+    console.log('Access Key ID:', envVars.AWS_ACCESS_KEY_ID?.substring(0, 5) + '...');
 
     // Create terraform.tfvars file
     const tfvars = `aws_region            = "${envVars.AWS_REGION}"

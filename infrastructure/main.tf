@@ -1,5 +1,16 @@
+terraform {
+  required_version = ">= 1.0.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 4.0"
+    }
+  }
+}
+
 provider "aws" {
-  region     = var.aws_region
+  region = var.aws_region
   access_key = var.aws_access_key_id
   secret_key = var.aws_secret_access_key
 }
@@ -23,6 +34,12 @@ resource "aws_s3_bucket_public_access_block" "audio_storage" {
   restrict_public_buckets = true
 }
 
+# CloudWatch log group for Lambda
+resource "aws_cloudwatch_log_group" "lambda_logs" {
+  name              = "/aws/lambda/${aws_lambda_function.audio_processor.function_name}"
+  retention_in_days = 7
+}
+
 # Lambda function
 resource "aws_lambda_function" "audio_processor" {
   filename         = "${path.module}/lambda/audio_processor.zip"
@@ -41,12 +58,6 @@ resource "aws_lambda_function" "audio_processor" {
   }
 }
 
-# CloudWatch log group for API Gateway
-resource "aws_cloudwatch_log_group" "api_logs" {
-  name              = "/aws/apigateway/${local.resource_prefix}-api"
-  retention_in_days = 7
-}
-
 # API Gateway
 resource "aws_apigatewayv2_api" "api" {
   name          = "${local.resource_prefix}-api"
@@ -58,6 +69,11 @@ resource "aws_apigatewayv2_api" "api" {
     allow_headers = ["*"]
     expose_headers = ["*"]
     max_age      = 300
+  }
+
+  default_route_settings {
+    throttling_burst_limit = 100
+    throttling_rate_limit  = 50
   }
 }
 
@@ -82,6 +98,12 @@ resource "aws_apigatewayv2_stage" "prod" {
   }
 }
 
+# CloudWatch log group for API Gateway
+resource "aws_cloudwatch_log_group" "api_logs" {
+  name              = "/aws/apigateway/${aws_apigatewayv2_api.api.name}"
+  retention_in_days = 7
+}
+
 # Lambda integration
 resource "aws_apigatewayv2_integration" "lambda" {
   api_id           = aws_apigatewayv2_api.api.id
@@ -89,10 +111,6 @@ resource "aws_apigatewayv2_integration" "lambda" {
   integration_uri  = aws_lambda_function.audio_processor.invoke_arn
   integration_method = "POST"
   payload_format_version = "2.0"
-
-  request_parameters = {
-    "overwrite:path" = "$request.path"
-  }
 }
 
 # Routes
@@ -117,12 +135,6 @@ resource "aws_lambda_permission" "api_gw" {
   source_arn    = "${aws_apigatewayv2_api.api.execution_arn}/*/*"
 }
 
-# CloudWatch Logs policy for Lambda
-resource "aws_iam_role_policy_attachment" "lambda_logs" {
-  role       = aws_iam_role.lambda_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
-
 # IAM Role for Lambda
 resource "aws_iam_role" "lambda_role" {
   name = "${local.resource_prefix}-lambda-role"
@@ -139,6 +151,12 @@ resource "aws_iam_role" "lambda_role" {
       }
     ]
   })
+}
+
+# CloudWatch Logs policy for Lambda
+resource "aws_iam_role_policy_attachment" "lambda_logs" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
 # IAM Policy for Lambda
