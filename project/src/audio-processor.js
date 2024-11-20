@@ -1,12 +1,7 @@
-// Audio processing state
-const state = {
-  mediaRecorder: null,
-  audioChunks: [],
-  processingQueue: [],
-  isProcessing: false
-};
+import { state } from './state.js';
+import { showError } from './utils.js';
 
-async function startProcessing() {
+export async function startProcessing() {
   const video = document.querySelector('video');
   if (!video) return;
 
@@ -25,7 +20,7 @@ async function startProcessing() {
     if (event.data.size > 0) {
       state.audioChunks.push(event.data);
       
-      if (state.audioChunks.length >= 3) { // Process every 3 seconds
+      if (state.audioChunks.length >= 3) {
         const audioToProcess = new Blob(state.audioChunks, { type: 'audio/webm' });
         state.processingQueue.push(audioToProcess);
         state.audioChunks = [];
@@ -37,7 +32,7 @@ async function startProcessing() {
     }
   };
 
-  state.mediaRecorder.start(1000); // Collect 1-second chunks
+  state.mediaRecorder.start(1000);
 }
 
 async function processNextInQueue() {
@@ -61,7 +56,7 @@ async function processNextInQueue() {
     formData.append('accent', settings.accent || 'en-US');
     formData.append('voice', settings.voice || 'Matthew');
 
-    const response = await fetch('https://qt8rhw0sv4.execute-api.us-east-1.amazonaws.com/prod/process-audio', {
+    const response = await fetch('https://7xw75x81q5.execute-api.us-east-1.amazonaws.com/prod/process-audio', {
       method: 'POST',
       body: formData
     });
@@ -76,12 +71,10 @@ async function processNextInQueue() {
   } catch (error) {
     console.error('Error processing audio:', error);
     showError('Audio processing failed. Please try again.');
-    // Reset processing state after error
     state.isProcessing = false;
     return;
   }
 
-  // Continue processing queue
   setTimeout(() => processNextInQueue(), 100);
 }
 
@@ -99,53 +92,8 @@ function playProcessedAudio(audioBlob) {
       video.muted = false;
     });
 
-    // Clean up blob URL after audio ends
     audio.onended = () => {
       URL.revokeObjectURL(audio.src);
     };
   }
 }
-
-function showError(message) {
-  const errorDiv = document.createElement('div');
-  errorDiv.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    background: #ff4444;
-    color: white;
-    padding: 10px 20px;
-    border-radius: 4px;
-    z-index: 9999;
-    font-family: Arial, sans-serif;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-  `;
-  errorDiv.textContent = message;
-  document.body.appendChild(errorDiv);
-  
-  setTimeout(() => {
-    errorDiv.style.transition = 'opacity 0.5s ease-out';
-    errorDiv.style.opacity = '0';
-    setTimeout(() => errorDiv.remove(), 500);
-  }, 3000);
-}
-
-// Initialize processing when enabled
-chrome.storage.local.get(['enabled'], function(result) {
-  if (result.enabled) {
-    startProcessing();
-  }
-});
-
-// Listen for changes in extension state
-chrome.storage.onChanged.addListener(function(changes) {
-  if (changes.enabled) {
-    if (changes.enabled.newValue) {
-      startProcessing();
-    } else {
-      if (state.mediaRecorder) {
-        state.mediaRecorder.stop();
-      }
-    }
-  }
-});

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Audio Accent Converter</title>
+  <style>
+    body {
+      width: 300px;
+      padding: 16px;
+      font-family: Arial, sans-serif;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    select, button {
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #45a049;
+    }
+    button:disabled {
+      background: #cccccc;
+      cursor: not-allowed;
+    }
+    .status {
+      margin-top: 10px;
+      padding: 8px;
+      border-radius: 4px;
+    }
+    .active {
+      background: #e6ffe6;
+      color: #006600;
+    }
+    .inactive {
+      background: #ffe6e6;
+      color: #660000;
+    }
+    .settings {
+      margin-top: 12px;
+      padding: 12px;
+      background: #f5f5f5;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Audio Accent Converter</h2>
+    
+    <div class="settings">
+      <label for="accent">Select Accent:</label>
+      <select id="accent">
+        <option value="en-US">American</option>
+        <option value="en-GB">British</option>
+        <option value="en-AU">Australian</option>
+        <option value="en-IN">Indian</option>
+      </select>
+      
+      <label for="voice">Select Voice:</label>
+      <select id="voice">
+        <option value="Matthew">Matthew (Male)</option>
+        <option value="Joanna">Joanna (Female)</option>
+        <option value="Amy">Amy (Female)</option>
+        <option value="Brian">Brian (Male)</option>
+      </select>
+    </div>
+
+    <button id="toggleButton">Enable/Disable</button>
+    <div id="status" class="status"></div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

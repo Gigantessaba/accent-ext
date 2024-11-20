@@ -1,0 +1,7 @@
+.terraform
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+.terraform.tfstate.lock.info
+lambda/audio_processor.zip
+build/

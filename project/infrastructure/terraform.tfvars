@@ -1,0 +1,5 @@
+aws_region            = "us-east-1"
+aws_access_key_id     = "your_access_key_here"
+aws_secret_access_key = "2SedMScuj/lEBixeuVnLQMtHdpqjXPPl0LkYAdVp"
+project_name          = "audio-accent-converter"
+environment           = "dev"
