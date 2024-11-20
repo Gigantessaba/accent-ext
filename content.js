@@ -14,7 +14,8 @@ async function startProcessing() {
 
   const mediaStream = new MediaStream([audioTrack]);
   mediaRecorder = new MediaRecorder(mediaStream, {
-    mimeType: 'audio/webm;codecs=opus'
+    mimeType: 'audio/webm;codecs=opus',
+    bitsPerSecond: 128000
   });
 
   mediaRecorder.ondataavailable = async (event) => {
@@ -46,7 +47,12 @@ async function processNextInQueue() {
   const audioBlob = processingQueue.shift();
   
   try {
-    const settings = await chrome.storage.local.get(['accent', 'voice']);
+    const settings = await chrome.storage.local.get(['accent', 'voice', 'enabled']);
+    if (!settings.enabled) {
+      isProcessing = false;
+      return;
+    }
+
     const formData = new FormData();
     formData.append('audio', audioBlob);
     formData.append('accent', settings.accent || 'en-US');
@@ -58,7 +64,8 @@ async function processNextInQueue() {
     });
     
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorData = await response.json();
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
     }
     
     const processedAudioBlob = await response.blob();
@@ -66,9 +73,13 @@ async function processNextInQueue() {
   } catch (error) {
     console.error('Error processing audio:', error);
     showError('Audio processing failed. Please try again.');
+    // Reset processing state after error
+    isProcessing = false;
+    return;
   }
 
-  processNextInQueue();
+  // Continue processing queue
+  setTimeout(() => processNextInQueue(), 100);
 }
 
 function playProcessedAudio(audioBlob) {
@@ -84,6 +95,11 @@ function playProcessedAudio(audioBlob) {
       console.error('Error playing processed audio:', error);
       video.muted = false;
     });
+
+    // Clean up blob URL after audio ends
+    audio.onended = () => {
+      URL.revokeObjectURL(audio.src);
+    };
   }
 }
 
@@ -98,15 +114,35 @@ function showError(message) {
     padding: 10px 20px;
     border-radius: 4px;
     z-index: 9999;
+    font-family: Arial, sans-serif;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
   `;
   errorDiv.textContent = message;
   document.body.appendChild(errorDiv);
   
-  setTimeout(() => errorDiv.remove(), 3000);
+  setTimeout(() => {
+    errorDiv.style.transition = 'opacity 0.5s ease-out';
+    errorDiv.style.opacity = '0';
+    setTimeout(() => errorDiv.remove(), 500);
+  }, 3000);
 }
 
+// Initialize processing when enabled
 chrome.storage.local.get(['enabled'], function(result) {
   if (result.enabled) {
     startProcessing();
+  }
+});
+
+// Listen for changes in extension state
+chrome.storage.onChanged.addListener(function(changes) {
+  if (changes.enabled) {
+    if (changes.enabled.newValue) {
+      startProcessing();
+    } else {
+      if (mediaRecorder) {
+        mediaRecorder.stop();
+      }
+    }
   }
 });
