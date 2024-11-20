@@ -56,13 +56,18 @@ async function processNextInQueue() {
     formData.append('accent', settings.accent || 'en-US');
     formData.append('voice', settings.voice || 'Matthew');
 
+    console.log('Sending request to API Gateway...');
     const response = await fetch('https://7xw75x81q5.execute-api.us-east-1.amazonaws.com/prod/process-audio', {
       method: 'POST',
-      body: formData
+      body: formData,
+      headers: {
+        'Accept': 'audio/mpeg',
+      }
     });
     
     if (!response.ok) {
       const errorData = await response.json();
+      console.error('API Error:', errorData);
       throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
     }
     

@@ -3,6 +3,18 @@ variable "aws_region" {
   type        = string
 }
 
+variable "aws_access_key_id" {
+  description = "AWS access key ID"
+  type        = string
+  sensitive   = true
+}
+
+variable "aws_secret_access_key" {
+  description = "AWS secret access key"
+  type        = string
+  sensitive   = true
+}
+
 variable "project_name" {
   description = "Project name to be used for resource naming"
   type        = string
