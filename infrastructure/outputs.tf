@@ -1,10 +1,10 @@
 output "api_endpoint" {
-  description = "API Gateway endpoint URL"
+  description = "API Gateway endpoint URL for the audio processing endpoint"
   value       = "${aws_apigatewayv2_api.api.api_endpoint}/process-audio"
 }
 
 output "bucket_name" {
-  description = "S3 bucket name"
+  description = "S3 bucket name for audio storage"
   value       = aws_s3_bucket.audio_storage.id
 }
 

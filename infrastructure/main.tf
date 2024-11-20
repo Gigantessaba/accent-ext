@@ -10,7 +10,7 @@ terraform {
 }
 
 provider "aws" {
-  region = var.aws_region
+  region     = var.aws_region
   access_key = var.aws_access_key_id
   secret_key = var.aws_secret_access_key
 }
@@ -36,7 +36,7 @@ resource "aws_s3_bucket_public_access_block" "audio_storage" {
 
 # CloudWatch log group for Lambda
 resource "aws_cloudwatch_log_group" "lambda_logs" {
-  name              = "/aws/lambda/${aws_lambda_function.audio_processor.function_name}"
+  name              = "/aws/lambda/${local.resource_prefix}-processor"
   retention_in_days = 7
 }
 
@@ -70,11 +70,12 @@ resource "aws_apigatewayv2_api" "api" {
     expose_headers = ["*"]
     max_age      = 300
   }
+}
 
-  default_route_settings {
-    throttling_burst_limit = 100
-    throttling_rate_limit  = 50
-  }
+# CloudWatch log group for API Gateway
+resource "aws_cloudwatch_log_group" "api_logs" {
+  name              = "/aws/apigateway/${aws_apigatewayv2_api.api.name}"
+  retention_in_days = 7
 }
 
 resource "aws_apigatewayv2_stage" "prod" {
@@ -82,7 +83,7 @@ resource "aws_apigatewayv2_stage" "prod" {
   name   = "prod"
   auto_deploy = true
 
-  access_log_settings {
+  access_logging_settings {
     destination_arn = aws_cloudwatch_log_group.api_logs.arn
     format = jsonencode({
       requestId      = "$context.requestId"
@@ -96,12 +97,6 @@ resource "aws_apigatewayv2_stage" "prod" {
       errorMessage  = "$context.error.message"
     })
   }
-}
-
-# CloudWatch log group for API Gateway
-resource "aws_cloudwatch_log_group" "api_logs" {
-  name              = "/aws/apigateway/${aws_apigatewayv2_api.api.name}"
-  retention_in_days = 7
 }
 
 # Lambda integration

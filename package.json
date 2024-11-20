@@ -1,0 +1,13 @@
+{
+  "name": "audio-accent-converter",
+  "version": "1.0.0",
+  "description": "Audio accent converter extension",
+  "type": "module",
+  "scripts": {
+    "test:api": "node test-api.js"
+  },
+  "dependencies": {
+    "form-data": "^4.0.0",
+    "node-fetch": "^2.7.0"
+  }
+}
