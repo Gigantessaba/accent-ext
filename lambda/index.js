@@ -1,11 +1,28 @@
+
 const AWS = require('aws-sdk');
 const s3 = new AWS.S3();
 const transcribe = new AWS.TranscribeService();
 const polly = new AWS.Polly();
 
 exports.handler = async (event) => {
+  console.log('Received event:', JSON.stringify(event, null, 2));
+
+  // Handle OPTIONS request
+  if (event.requestContext.http.method === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': '*',
+        'Access-Control-Expose-Headers': '*',
+        'Access-Control-Max-Age': '300'
+      },
+      body: ''
+    };
+  }
+
   try {
-    // Check if the event body exists and parse it if it's a string
     if (!event.body) {
       throw new Error('No request body provided');
     }
@@ -15,24 +32,18 @@ exports.handler = async (event) => {
       body = Buffer.from(event.body, 'base64').toString();
     }
 
-    // Parse multipart form data
     const boundary = event.headers['content-type']?.split('boundary=')[1];
     if (!boundary) {
       throw new Error('No boundary found in content-type header');
     }
 
-    // Split the body into parts using the boundary
     const parts = body.split(`--${boundary}`);
-    
-    // Initialize variables for form data
     let audioData = null;
     let accent = 'en-US';
     let voice = 'Matthew';
-    
-    // Process each part
+
     for (const part of parts) {
       if (part.includes('name="audio"')) {
-        // Extract base64 audio data
         const matches = part.match(/\r\n\r\n(.*?)\r\n/s);
         if (matches && matches[1]) {
           audioData = Buffer.from(matches[1], 'base64');
@@ -56,8 +67,7 @@ exports.handler = async (event) => {
 
     const timestamp = Date.now();
     const inputKey = `input/${timestamp}.webm`;
-    
-    // Upload audio to S3
+
     await s3.putObject({
       Bucket: process.env.BUCKET_NAME,
       Key: inputKey,
@@ -65,7 +75,6 @@ exports.handler = async (event) => {
       ContentType: 'audio/webm'
     }).promise();
 
-    // Start transcription job
     const transcriptionJob = await transcribe.startTranscriptionJob({
       TranscriptionJobName: `job-${timestamp}`,
       Media: {
@@ -77,10 +86,8 @@ exports.handler = async (event) => {
       OutputKey: `transcript/${timestamp}.json`
     }).promise();
 
-    // Wait for transcription to complete
     await waitForTranscription(`job-${timestamp}`);
 
-    // Get transcription results
     const transcriptData = await s3.getObject({
       Bucket: process.env.BUCKET_NAME,
       Key: `transcript/${timestamp}.json`
@@ -89,7 +96,6 @@ exports.handler = async (event) => {
     const transcript = JSON.parse(transcriptData.Body.toString());
     const text = transcript.results.transcripts[0].transcript;
 
-    // Convert text to speech with selected accent and voice
     const speechParams = {
       Engine: 'neural',
       LanguageCode: accent,
@@ -101,7 +107,7 @@ exports.handler = async (event) => {
 
     const synthesizedSpeech = await polly.synthesizeSpeech(speechParams).promise();
 
-    // Clean up S3 files
+    // Cleanup S3 files
     await Promise.all([
       s3.deleteObject({ Bucket: process.env.BUCKET_NAME, Key: inputKey }).promise(),
       s3.deleteObject({ Bucket: process.env.BUCKET_NAME, Key: `transcript/${timestamp}.json` }).promise()
@@ -110,49 +116,31 @@ exports.handler = async (event) => {
     return {
       statusCode: 200,
       headers: {
-        'Content-Type': 'audio/mpeg',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type'
+        'Access-Control-Allow-Origin': '*'
       },
       body: synthesizedSpeech.AudioStream.toString('base64'),
       isBase64Encoded: true
     };
   } catch (error) {
-    console.error('Error:', error);
+    console.error(error);
     return {
       statusCode: 500,
       headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type'
+        'Access-Control-Allow-Origin': '*'
       },
-      body: JSON.stringify({ 
-        error: error.message,
-        details: error.stack 
-      })
+      body: JSON.stringify({ message: error.message })
     };
   }
 };
 
 async function waitForTranscription(jobName) {
-  let retries = 0;
-  const maxRetries = 30; // 30 seconds timeout
-
-  while (retries < maxRetries) {
-    const { TranscriptionJob } = await transcribe.getTranscriptionJob({
-      TranscriptionJobName: jobName
-    }).promise();
-
-    if (TranscriptionJob.TranscriptionJobStatus === 'COMPLETED') {
-      return;
-    } else if (TranscriptionJob.TranscriptionJobStatus === 'FAILED') {
-      throw new Error(`Transcription job failed: ${TranscriptionJob.FailureReason}`);
+  let status;
+  do {
+    const data = await transcribe.getTranscriptionJob({ TranscriptionJobName: jobName }).promise();
+    status = data.TranscriptionJob.TranscriptionJobStatus;
+    if (status === 'FAILED') {
+      throw new Error('Transcription job failed');
     }
-
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    retries++;
-  }
-
-  throw new Error('Transcription job timed out');
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+  } while (status !== 'COMPLETED');
 }

@@ -1,3 +1,4 @@
+
 // Audio processing state
 const state = {
   mediaRecorder: null,
@@ -37,7 +38,7 @@ async function startProcessing() {
     }
   };
 
-  state.mediaRecorder.start(1000); // Collect 1-second chunks
+  state.mediaRecorder.start(1000);
 }
 
 async function processNextInQueue() {
@@ -48,104 +49,30 @@ async function processNextInQueue() {
 
   state.isProcessing = true;
   const audioBlob = state.processingQueue.shift();
-  
-  try {
-    const settings = await chrome.storage.local.get(['accent', 'voice', 'enabled']);
-    if (!settings.enabled) {
-      state.isProcessing = false;
-      return;
-    }
 
+  try {
     const formData = new FormData();
     formData.append('audio', audioBlob);
-    formData.append('accent', settings.accent || 'en-US');
-    formData.append('voice', settings.voice || 'Matthew');
+    formData.append('accent', 'en-US'); // Default accent for now
+    formData.append('voice', 'Matthew'); // Default voice
 
-    const response = await fetch('https://gdtshkeye0.execute-api.us-east-1.amazonaws.com/prod/process-audio', {
+    const response = await fetch('https://<your-api-gateway-endpoint>', {
       method: 'POST',
       body: formData
     });
-    
+
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      throw new Error('Failed to process audio');
     }
-    
-    const processedAudioBlob = await response.blob();
-    playProcessedAudio(processedAudioBlob);
+
+    const audioBase64 = await response.text();
+    const audioElement = new Audio(`data:audio/mp3;base64,${audioBase64}`);
+    audioElement.play();
   } catch (error) {
     console.error('Error processing audio:', error);
-    showError('Audio processing failed. Please try again.');
-    // Reset processing state after error
-    state.isProcessing = false;
-    return;
-  }
-
-  // Continue processing queue
-  setTimeout(() => processNextInQueue(), 100);
-}
-
-function playProcessedAudio(audioBlob) {
-  const audio = new Audio(URL.createObjectURL(audioBlob));
-  const video = document.querySelector('video');
-  
-  if (video) {
-    audio.currentTime = video.currentTime;
-    audio.playbackRate = video.playbackRate;
-    video.muted = true;
-    
-    audio.play().catch(error => {
-      console.error('Error playing processed audio:', error);
-      video.muted = false;
-    });
-
-    // Clean up blob URL after audio ends
-    audio.onended = () => {
-      URL.revokeObjectURL(audio.src);
-    };
+  } finally {
+    processNextInQueue();
   }
 }
 
-function showError(message) {
-  const errorDiv = document.createElement('div');
-  errorDiv.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    background: #ff4444;
-    color: white;
-    padding: 10px 20px;
-    border-radius: 4px;
-    z-index: 9999;
-    font-family: Arial, sans-serif;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-  `;
-  errorDiv.textContent = message;
-  document.body.appendChild(errorDiv);
-  
-  setTimeout(() => {
-    errorDiv.style.transition = 'opacity 0.5s ease-out';
-    errorDiv.style.opacity = '0';
-    setTimeout(() => errorDiv.remove(), 500);
-  }, 3000);
-}
-
-// Initialize processing when enabled
-chrome.storage.local.get(['enabled'], function(result) {
-  if (result.enabled) {
-    startProcessing();
-  }
-});
-
-// Listen for changes in extension state
-chrome.storage.onChanged.addListener(function(changes) {
-  if (changes.enabled) {
-    if (changes.enabled.newValue) {
-      startProcessing();
-    } else {
-      if (state.mediaRecorder) {
-        state.mediaRecorder.stop();
-      }
-    }
-  }
-});
+startProcessing();

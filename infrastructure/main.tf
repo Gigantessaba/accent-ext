@@ -1,5 +1,18 @@
+terraform {
+  required_version = ">= 1.0.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 4.0"
+    }
+  }
+}
+
 provider "aws" {
-  region = var.aws_region
+  region     = var.aws_region
+  access_key = var.aws_access_key_id
+  secret_key = var.aws_secret_access_key
 }
 
 locals {
@@ -8,7 +21,8 @@ locals {
 
 # S3 bucket for storing audio files
 resource "aws_s3_bucket" "audio_storage" {
-  bucket = "${local.resource_prefix}-storage"
+  bucket        = "${local.resource_prefix}-storage"
+  force_destroy = true
 }
 
 resource "aws_s3_bucket_public_access_block" "audio_storage" {
@@ -47,8 +61,30 @@ resource "aws_apigatewayv2_api" "api" {
     allow_origins = ["*"]
     allow_methods = ["POST", "OPTIONS"]
     allow_headers = ["*"]
+    expose_headers = ["*"]
     max_age      = 300
   }
+
+  access_log_settings {
+    destination_arn = aws_cloudwatch_log_group.api_logs.arn
+    format = jsonencode({
+      requestId      = "$context.requestId"
+      ip            = "$context.identity.sourceIp"
+      requestTime   = "$context.requestTime"
+      httpMethod    = "$context.httpMethod"
+      routeKey      = "$context.routeKey"
+      status        = "$context.status"
+      protocol      = "$context.protocol"
+      responseLength = "$context.responseLength"
+      errorMessage  = "$context.error.message"
+    })
+  }
+}
+
+# CloudWatch log group for API Gateway
+resource "aws_cloudwatch_log_group" "api_logs" {
+  name              = "/aws/apigateway/${local.resource_prefix}-api"
+  retention_in_days = 7
 }
 
 resource "aws_apigatewayv2_stage" "prod" {
@@ -57,16 +93,29 @@ resource "aws_apigatewayv2_stage" "prod" {
   auto_deploy = true
 }
 
+# Lambda integration
 resource "aws_apigatewayv2_integration" "lambda" {
   api_id           = aws_apigatewayv2_api.api.id
   integration_type = "AWS_PROXY"
   integration_uri  = aws_lambda_function.audio_processor.invoke_arn
   integration_method = "POST"
+  payload_format_version = "2.0"
+
+  request_parameters = {
+    "overwrite:path" = "$request.path"
+  }
 }
 
-resource "aws_apigatewayv2_route" "process_audio" {
+# Routes
+resource "aws_apigatewayv2_route" "post_audio" {
   api_id    = aws_apigatewayv2_api.api.id
   route_key = "POST /process-audio"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "options_audio" {
+  api_id    = aws_apigatewayv2_api.api.id
+  route_key = "OPTIONS /process-audio"
   target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
@@ -95,6 +144,12 @@ resource "aws_iam_role" "lambda_role" {
       }
     ]
   })
+}
+
+# CloudWatch Logs policy for Lambda
+resource "aws_iam_role_policy_attachment" "lambda_logs" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
 # IAM Policy for Lambda
@@ -132,15 +187,6 @@ resource "aws_iam_role_policy" "lambda_policy" {
           "polly:SynthesizeSpeech"
         ]
         Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ]
-        Resource = "arn:aws:logs:*:*:*"
       }
     ]
   })
