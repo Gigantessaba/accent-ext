@@ -1,42 +1,50 @@
-# YouTube Accent Converter Chrome Extension
+# Audio Accent Converter
 
-This Chrome extension converts English accents to American accents in YouTube videos using AWS services.
+This Chrome extension converts audio accents in real-time using AWS services.
 
 ## Setup Instructions
 
-1. Deploy AWS Infrastructure:
-```bash
-cd infrastructure
-terraform init
-terraform apply
-```
+1. Configure AWS Credentials:
+   ```bash
+   export AWS_ACCESS_KEY_ID="your_access_key"
+   export AWS_SECRET_ACCESS_KEY="your_secret_key"
+   export AWS_REGION="us-east-1"
+   ```
 
-2. Update the API Gateway URL:
-- After deploying, get the API Gateway URL from AWS Console
-- Replace `YOUR_API_GATEWAY_URL` in `content.js` with the actual URL
+2. Deploy AWS Infrastructure:
+   ```bash
+   cd infrastructure
+   npm install
+   npm run deploy
+   ```
 
-3. Load the Chrome Extension:
-- Open Chrome and go to `chrome://extensions/`
-- Enable Developer Mode
-- Click "Load unpacked" and select the extension directory
+3. Update Extension Configuration:
+   - After deployment, copy the API Gateway URL from the Terraform output
+   - Replace `YOUR_API_GATEWAY_URL` in `content.js` with the actual URL
 
-## Architecture
-
-- Chrome Extension: Captures audio from YouTube videos
-- AWS Lambda: Processes audio using Amazon Transcribe and Polly
-- S3: Stores audio files
-- API Gateway: Provides HTTP endpoint for the extension
+4. Load the Chrome Extension:
+   - Open Chrome and go to `chrome://extensions/`
+   - Enable Developer Mode
+   - Click "Load unpacked" and select the extension directory
 
 ## Features
 
 - Real-time accent conversion
-- Toggle conversion on/off
+- Multiple accent options (American, British, Australian, Indian)
+- Different voice choices
+- Seamless audio processing
 - Minimal impact on video playback
-- Secure audio processing using AWS services
+
+## Architecture
+
+- Chrome Extension: Captures and processes audio in chunks
+- AWS Lambda: Handles audio conversion using Amazon Transcribe and Polly
+- Amazon S3: Temporary storage for audio processing
+- Amazon API Gateway: Secure endpoint for the extension
 
 ## Note
 
-The accent conversion requires an AWS account with appropriate services enabled:
+This extension requires an AWS account with the following services:
 - Amazon S3
 - AWS Lambda
 - Amazon API Gateway

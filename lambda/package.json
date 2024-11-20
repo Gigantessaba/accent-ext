@@ -1,0 +1,9 @@
+{
+  "name": "audio-accent-converter",
+  "version": "1.0.0",
+  "description": "AWS Lambda function for audio accent conversion",
+  "main": "index.js",
+  "dependencies": {
+    "aws-sdk": "^2.1450.0"
+  }
+}

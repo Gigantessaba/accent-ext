@@ -1,19 +1,14 @@
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 4.0"
-    }
-  }
+provider "aws" {
+  region = var.aws_region
 }
 
-provider "aws" {
-  region = "us-east-1"
+locals {
+  resource_prefix = "${var.project_name}-${var.environment}"
 }
 
 # S3 bucket for storing audio files
 resource "aws_s3_bucket" "audio_storage" {
-  bucket = "audio-accent-converter-storage"
+  bucket = "${local.resource_prefix}-storage"
 }
 
 resource "aws_s3_bucket_public_access_block" "audio_storage" {
@@ -27,8 +22,9 @@ resource "aws_s3_bucket_public_access_block" "audio_storage" {
 
 # Lambda function
 resource "aws_lambda_function" "audio_processor" {
-  filename         = "lambda/audio_processor.zip"
-  function_name    = "audio-accent-converter"
+  filename         = "${path.module}/lambda/audio_processor.zip"
+  source_code_hash = filebase64sha256("${path.module}/lambda/audio_processor.zip")
+  function_name    = "${local.resource_prefix}-processor"
   role            = aws_iam_role.lambda_role.arn
   handler         = "index.handler"
   runtime         = "nodejs18.x"
@@ -44,8 +40,9 @@ resource "aws_lambda_function" "audio_processor" {
 
 # API Gateway with CORS
 resource "aws_apigatewayv2_api" "api" {
-  name          = "audio-accent-converter-api"
+  name          = "${local.resource_prefix}-api"
   protocol_type = "HTTP"
+
   cors_configuration {
     allow_origins = ["*"]
     allow_methods = ["POST", "OPTIONS"]
@@ -73,9 +70,18 @@ resource "aws_apigatewayv2_route" "process_audio" {
   target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
-# IAM Role for Lambda with extended permissions
+# Lambda permission for API Gateway
+resource "aws_lambda_permission" "api_gw" {
+  statement_id  = "AllowExecutionFromAPIGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.audio_processor.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.api.execution_arn}/*/*"
+}
+
+# IAM Role for Lambda
 resource "aws_iam_role" "lambda_role" {
-  name = "audio_accent_converter_lambda_role"
+  name = "${local.resource_prefix}-lambda-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -91,9 +97,9 @@ resource "aws_iam_role" "lambda_role" {
   })
 }
 
-# IAM Policy for Lambda with Transcribe and Polly permissions
+# IAM Policy for Lambda
 resource "aws_iam_role_policy" "lambda_policy" {
-  name = "audio_accent_converter_lambda_policy"
+  name = "${local.resource_prefix}-lambda-policy"
   role = aws_iam_role.lambda_role.id
 
   policy = jsonencode({
@@ -108,7 +114,7 @@ resource "aws_iam_role_policy" "lambda_policy" {
           "s3:ListBucket"
         ]
         Resource = [
-          "${aws_s3_bucket.audio_storage.arn}",
+          aws_s3_bucket.audio_storage.arn,
           "${aws_s3_bucket.audio_storage.arn}/*"
         ]
       },

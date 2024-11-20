@@ -52,7 +52,7 @@ async function processNextInQueue() {
     formData.append('accent', settings.accent || 'en-US');
     formData.append('voice', settings.voice || 'Matthew');
 
-    const response = await fetch('https://YOUR_API_GATEWAY_URL/process-audio', {
+    const response = await fetch('https://7xw75x81q5.execute-api.us-east-1.amazonaws.com/prod/process-audio', {
       method: 'POST',
       body: formData
     });
