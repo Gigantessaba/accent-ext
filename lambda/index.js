@@ -31,13 +31,9 @@ exports.handler = async (event) => {
       body = Buffer.from(event.body, 'base64').toString();
     }
 
-    const contentType = event.headers['content-type'] || event.headers['Content-Type'];
-    console.log('Content-Type:', contentType);
+    console.log('Content-Type:', event.headers['content-type']);
     
-    // Extract boundary from Content-Type header
-    const boundaryMatch = contentType?.match(/boundary=(?:"([^"]+)"|([^;]+))/i);
-    const boundary = boundaryMatch?.[1] || boundaryMatch?.[2];
-    
+    const boundary = event.headers['content-type']?.split('boundary=')[1];
     if (!boundary) {
       throw new Error('No boundary found in content-type header');
     }
@@ -52,31 +48,24 @@ exports.handler = async (event) => {
     let voice = 'Matthew';
     
     for (const part of parts) {
-      if (!part.trim()) continue;
-      
       console.log('Processing part:', part.substring(0, 100) + '...');
       
-      const contentDisposition = part.match(/Content-Disposition:\s*form-data;\s*name="([^"]+)"/i);
-      if (!contentDisposition) continue;
-      
-      const fieldName = contentDisposition[1];
-      
-      if (fieldName === 'audio') {
-        const base64Data = part.match(/\r\n\r\n([\s\S]*?)\r\n--/);
-        if (base64Data?.[1]) {
-          audioData = Buffer.from(base64Data[1], 'base64');
+      if (part.includes('name="audio"')) {
+        const matches = part.match(/\r\n\r\n(.*?)\r\n/s);
+        if (matches && matches[1]) {
+          audioData = Buffer.from(matches[1], 'base64');
           console.log('Found audio data, size:', audioData.length);
         }
-      } else if (fieldName === 'accent') {
-        const value = part.match(/\r\n\r\n(.*?)\r\n/);
-        if (value?.[1]) {
-          accent = value[1].trim();
+      } else if (part.includes('name="accent"')) {
+        const matches = part.match(/\r\n\r\n(.*?)\r\n/);
+        if (matches && matches[1]) {
+          accent = matches[1].trim();
           console.log('Found accent:', accent);
         }
-      } else if (fieldName === 'voice') {
-        const value = part.match(/\r\n\r\n(.*?)\r\n/);
-        if (value?.[1]) {
-          voice = value[1].trim();
+      } else if (part.includes('name="voice"')) {
+        const matches = part.match(/\r\n\r\n(.*?)\r\n/);
+        if (matches && matches[1]) {
+          voice = matches[1].trim();
           console.log('Found voice:', voice);
         }
       }

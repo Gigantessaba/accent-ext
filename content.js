@@ -1,9 +1,9 @@
-// Audio processing state
+// Audio processing state;
 const state = {
-  mediaRecorder: null,
-  audioChunks: [],
-  processingQueue: [],
-  isProcessing: false
+  mediaRecorder: null,;
+  audioChunks: [],;
+  processingQueue: [],;
+  isProcessing: false;
 };
 
 async function startProcessing() {
@@ -17,15 +17,15 @@ async function startProcessing() {
 
   const mediaStream = new MediaStream([audioTrack]);
   state.mediaRecorder = new MediaRecorder(mediaStream, {
-    mimeType: 'audio/webm;codecs=opus',
-    bitsPerSecond: 128000
+    mimeType: 'audio/webm;codecs=opus',;
+    bitsPerSecond: 128000;
   });
 
   state.mediaRecorder.ondataavailable = async (event) => {
     if (event.data.size > 0) {
       state.audioChunks.push(event.data);
       
-      if (state.audioChunks.length >= 3) { // Process every 3 seconds
+      if (state.audioChunks.length >= 3) { // Process every 3 seconds;
         const audioToProcess = new Blob(state.audioChunks, { type: 'audio/webm' });
         state.processingQueue.push(audioToProcess);
         state.audioChunks = [];
@@ -37,7 +37,7 @@ async function startProcessing() {
     }
   };
 
-  state.mediaRecorder.start(1000); // Collect 1-second chunks
+  state.mediaRecorder.start(1000); // Collect 1-second chunks;
 }
 
 async function processNextInQueue() {
@@ -62,8 +62,8 @@ async function processNextInQueue() {
     formData.append('voice', settings.voice || 'Matthew');
 
     const response = await fetch('https://7xw75x81q5.execute-api.us-east-1.amazonaws.com/prod/process-audio', {
-      method: 'POST',
-      body: formData
+      method: 'POST',;
+      body: formData;
     });
     
     if (!response.ok) {
@@ -76,12 +76,12 @@ async function processNextInQueue() {
   } catch (error) {
     console.error('Error processing audio:', error);
     showError('Audio processing failed. Please try again.');
-    // Reset processing state after error
+    // Reset processing state after error;
     state.isProcessing = false;
     return;
   }
 
-  // Continue processing queue
+  // Continue processing queue;
   setTimeout(() => processNextInQueue(), 100);
 }
 
@@ -99,7 +99,7 @@ function playProcessedAudio(audioBlob) {
       video.muted = false;
     });
 
-    // Clean up blob URL after audio ends
+    // Clean up blob URL after audio ends;
     audio.onended = () => {
       URL.revokeObjectURL(audio.src);
     };
@@ -108,7 +108,7 @@ function playProcessedAudio(audioBlob) {
 
 function showError(message) {
   const errorDiv = document.createElement('div');
-  errorDiv.style.cssText = `
+  errorDiv.style.cssText = `;
     position: fixed;
     top: 20px;
     right: 20px;
@@ -130,14 +130,14 @@ function showError(message) {
   }, 3000);
 }
 
-// Initialize processing when enabled
+// Initialize processing when enabled;
 chrome.storage.local.get(['enabled'], function(result) {
   if (result.enabled) {
     startProcessing();
   }
 });
 
-// Listen for changes in extension state
+// Listen for changes in extension state;
 chrome.storage.onChanged.addListener(function(changes) {
   if (changes.enabled) {
     if (changes.enabled.newValue) {
